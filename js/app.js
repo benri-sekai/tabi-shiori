@@ -1011,6 +1011,7 @@ function currentView() {
 }
 
 function render() {
+  if (!store) return;
   const focused = document.activeElement;
   // 新規作成フォームは入力途中で描き直さない
   if (focused?.closest?.('#new-trip') && location.hash === '#/new') return;
@@ -1032,7 +1033,8 @@ async function start() {
     store = await openStore();
   } catch (error) {
     console.error(error);
-    app.innerHTML = viewMessage('開けませんでした', '初めて開くときはネット接続が必要です。接続を確認して、もう一度開いてください。');
+    const detail = error.code ? `（${error.code}）` : '';
+    app.innerHTML = viewMessage('開けませんでした', `初めて開くときはネット接続が必要です。接続を確認して、もう一度開いてください。${detail}`);
     return;
   }
   render();
