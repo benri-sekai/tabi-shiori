@@ -122,10 +122,12 @@ async function createFirebaseStore() {
   };
 }
 
-export const SECTION_NAMES = ['members', 'itinerary', 'places', 'reservations', 'expenses'];
+export const SECTION_NAMES = ['members', 'itinerary', 'places', 'reservations', 'expenses', 'images'];
 
 export async function openStore() {
-  const store = firebaseConfig ? await createFirebaseStore() : createLocalStore();
+  // URLに ?demo を付けると、本番データに触れずにお試しモードで動く
+  const useFirebase = firebaseConfig && !new URLSearchParams(location.search).has('demo');
+  const store = useFirebase ? await createFirebaseStore() : createLocalStore();
   await store.init();
   return store;
 }

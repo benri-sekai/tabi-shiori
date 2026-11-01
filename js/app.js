@@ -9,6 +9,8 @@ const toastEl = document.getElementById('toast');
 const CATEGORIES = ['交通', '宿泊', '食事', '観光', '買い物', 'その他'];
 const RESERVATION_TYPES = ['宿泊', '交通', '食事', 'チケット', 'その他'];
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+const MAX_IMAGES = 4;
+const MAX_IMAGE_CHARS = 600000; // Firestoreの1件1MiBの上限に余裕を持たせる
 const TABS = [
   ['home', 'ホーム', '⌂'],
   ['itinerary', '日程', '☰'],
@@ -91,6 +93,143 @@ function toast(message) {
 
 const memberName = (id) => current.members.find((m) => m.id === id)?.name ?? '（削除された人）';
 const meId = () => loadMyTrips()[current.id]?.memberId;
+
+// ---------- 画像 ----------
+
+// 招待された人も書き込めるので、自分で圧縮したJPEGの形式だけを表示する
+const isImageData = (value) => typeof value === 'string' && value.startsWith('data:image/jpeg;base64,');
+
+const imagesOf = (section, id) => current.images
+  .filter((image) => image.ownerSection === section && image.ownerId === id && isImageData(image.dataUrl))
+  .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+function thumbsHtml(section, id) {
+  const images = imagesOf(section, id);
+  if (!images.length) return '';
+  return `
+    <div class="thumbs">
+      ${images.map((image, i) => `
+        <button type="button" class="thumb" data-action="view-images" data-section="${esc(section)}" data-id="${esc(id)}" aria-label="画像${i + 1}を大きく表示">
+          <img src="${esc(image.dataUrl)}" alt="" loading="lazy" decoding="async">
+        </button>`).join('')}
+    </div>`;
+}
+
+// 長辺と画質を下げながら、保存できる大きさのJPEGにする。canvasを通すので位置情報なども消える。
+async function compressImage(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    // 読み込めない画像で入力シートが止まったままにならないよう、時間を区切る
+    await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('image load timeout')), 30000);
+      image.onload = () => { clearTimeout(timer); resolve(); };
+      image.onerror = () => { clearTimeout(timer); reject(new Error('image load failed')); };
+      image.src = url;
+    });
+    for (const [side, quality] of [[1600, 0.8], [1280, 0.75], [1024, 0.7], [800, 0.6], [640, 0.5]]) {
+      const scale = Math.min(1, side / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(image.naturalWidth * scale);
+      canvas.height = Math.round(image.naturalHeight * scale);
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/jpeg', quality);
+      if (dataUrl.length <= MAX_IMAGE_CHARS) return dataUrl;
+    }
+    throw new Error('image too large');
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+const imageFieldHtml = `
+  <div class="field">
+    <span class="field-label">画像<span class="opt">任意・${MAX_IMAGES}枚まで</span></span>
+    <div class="image-edit" id="image-edit"></div>
+    <label class="btn small file-btn" id="image-add">
+      ＋ 画像を選ぶ
+      <input type="file" id="image-input" accept="image/*" multiple class="visually-hidden">
+    </label>
+    <p class="hint" id="image-status" role="status"></p>
+  </div>`;
+
+// 入力シートの画像欄を動かし、保存時に呼ぶ処理を返す
+function attachImagePicker(section, itemId) {
+  const removed = new Set();
+  const pending = [];
+  const list = sheet.querySelector('#image-edit');
+  const input = sheet.querySelector('#image-input');
+  const status = sheet.querySelector('#image-status');
+  const addLabel = sheet.querySelector('#image-add');
+  const submit = sheet.querySelector('button[type="submit"]');
+  const kept = () => imagesOf(section, itemId).filter((image) => !removed.has(image.id));
+
+  const draw = () => {
+    list.innerHTML = [
+      ...kept().map((image) => [image.dataUrl, `saved:${image.id}`]),
+      ...pending.map((dataUrl, i) => [dataUrl, `new:${i}`]),
+    ].map(([src, key], i) => `
+      <div class="image-item">
+        <img src="${esc(src)}" alt="画像${i + 1}">
+        <button type="button" class="image-remove" data-remove="${esc(key)}" aria-label="画像${i + 1}を外す">×</button>
+      </div>`).join('');
+    addLabel.hidden = kept().length + pending.length >= MAX_IMAGES;
+  };
+
+  list.addEventListener('click', (event) => {
+    const key = event.target.closest('[data-remove]')?.dataset.remove;
+    if (!key) return;
+    const [kind, value] = key.split(':');
+    if (kind === 'saved') removed.add(value);
+    else pending.splice(Number(value), 1);
+    draw();
+  });
+
+  input.addEventListener('change', async () => {
+    const room = MAX_IMAGES - kept().length - pending.length;
+    const files = [...input.files];
+    input.value = '';
+    submit.disabled = true;
+    status.textContent = '画像を小さくしています…';
+    let failed = 0;
+    for (const file of files.slice(0, room)) {
+      try {
+        pending.push(await compressImage(file));
+        draw();
+      } catch (error) {
+        console.error(error);
+        failed += 1;
+      }
+    }
+    const messages = [];
+    if (failed) messages.push(`${failed}枚を読み込めませんでした。`);
+    if (files.length > room) messages.push(`画像は${MAX_IMAGES}枚までです。`);
+    status.textContent = messages.join('');
+    submit.disabled = false;
+  });
+
+  draw();
+  return () => {
+    removed.forEach((id) => store.remove(current.id, 'images', id));
+    pending.forEach((dataUrl) => {
+      store.set(current.id, 'images', randomId(20), {
+        ownerSection: section,
+        ownerId: itemId,
+        dataUrl,
+        createdAt: new Date().toISOString(),
+      });
+    });
+  };
+}
+
+function removeImagesOf(section, id) {
+  current.images
+    .filter((image) => image.ownerSection === section && image.ownerId === id)
+    .forEach((image) => store.remove(current.id, 'images', image.id));
+}
 
 // ---------- 入力シート ----------
 
@@ -360,6 +499,7 @@ function viewPlaces() {
             <a class="link-btn" href="${esc(safeUrl(p.url) || mapsUrl(p.name))}" target="_blank" rel="noopener noreferrer">地図</a>
             <button class="link-btn" data-action="place-to-itinerary" data-id="${esc(p.id)}">日程へ</button>
           </div>
+          ${thumbsHtml('places', p.id)}
         </li>`).join('')}
     </ul>` : '<p class="empty">気になる場所をメモしておきましょう。</p>';
   return tripShell('places', '行きたい場所', body, {
@@ -370,7 +510,7 @@ function viewPlaces() {
 function viewReservations() {
   const items = [...current.reservations].sort(byDateTime);
   const body = `
-    <p class="notice">招待リンクを知っている人は、ここの内容をすべて読めます。パスポート番号やカード番号は書かないでください。</p>
+    <p class="notice">招待リンクを知っている人は、画像も含めてここの内容をすべて読めます。パスポート番号やカード番号は、文字でも画像でも保存しないでください。</p>
     ${items.length ? `
       <ul class="card-list">
         ${items.map((r) => `
@@ -387,6 +527,7 @@ function viewReservations() {
               ${r.code ? `<button class="link-btn" data-action="copy" data-text="${esc(r.code)}">番号 ${esc(r.code)} をコピー</button>` : ''}
               ${safeUrl(r.url) ? `<a class="link-btn" href="${esc(safeUrl(r.url))}" target="_blank" rel="noopener noreferrer">予約ページ</a>` : ''}
             </div>
+            ${thumbsHtml('reservations', r.id)}
           </li>`).join('')}
       </ul>` : '<p class="empty">ホテルや交通機関の予約をまとめておきましょう。</p>'}`;
   return tripShell('reservations', '予約情報', body, {
@@ -629,28 +770,38 @@ function itineraryForm(existing, preset = {}) {
 }
 
 function placeForm(existing) {
+  const itemId = existing?.id || randomId(20);
+  let saveImages = () => {};
   openSheet({
     title: existing ? '場所を編集' : '行きたい場所を追加',
     body: [
       fieldHtml({ name: 'name', label: '名前', required: true, value: existing?.name, placeholder: '例：伏見稲荷大社' }),
       fieldHtml({ name: 'url', label: '地図やWebページのURL', type: 'url', inputmode: 'url', value: existing?.url, hint: '空なら、名前でGoogleマップを検索します。' }),
       fieldHtml({ name: 'note', label: 'メモ', type: 'textarea', value: existing?.note }),
+      imageFieldHtml,
     ].join(''),
     onSubmit: (values) => {
       if (values.url && !safeUrl(values.url)) return 'URLは http:// か https:// で始まるものを入れてください';
-      store.set(current.id, 'places', existing?.id || randomId(20), {
+      store.set(current.id, 'places', itemId, {
         name: values.name,
         url: values.url,
         note: values.note,
         createdAt: existing?.createdAt || new Date().toISOString(),
       });
+      saveImages();
       return null;
     },
-    onDelete: existing ? () => store.remove(current.id, 'places', existing.id) : null,
+    onDelete: existing ? () => {
+      removeImagesOf('places', existing.id);
+      store.remove(current.id, 'places', existing.id);
+    } : null,
   });
+  saveImages = attachImagePicker('places', itemId);
 }
 
 function reservationForm(existing) {
+  const itemId = existing?.id || randomId(20);
+  let saveImages = () => {};
   openSheet({
     title: existing ? '予約を編集' : '予約を追加',
     body: [
@@ -660,18 +811,24 @@ function reservationForm(existing) {
       fieldHtml({ name: 'code', label: '予約番号', value: existing?.code }),
       fieldHtml({ name: 'url', label: '予約ページのURL', type: 'url', inputmode: 'url', value: existing?.url }),
       fieldHtml({ name: 'note', label: 'メモ', type: 'textarea', value: existing?.note }),
-      '<p class="notice">パスポート番号やカード番号は書かないでください。</p>',
+      imageFieldHtml,
+      '<p class="notice">パスポート番号やカード番号は、文字でも画像でも保存しないでください。予約確認の画像は、不要な個人情報を隠してから選ぶと安心です。</p>',
     ].join(''),
     onSubmit: (values) => {
       if (values.url && !safeUrl(values.url)) return 'URLは http:// か https:// で始まるものを入れてください';
-      store.set(current.id, 'reservations', existing?.id || randomId(20), {
+      store.set(current.id, 'reservations', itemId, {
         ...values,
         createdAt: existing?.createdAt || new Date().toISOString(),
       });
+      saveImages();
       return null;
     },
-    onDelete: existing ? () => store.remove(current.id, 'reservations', existing.id) : null,
+    onDelete: existing ? () => {
+      removeImagesOf('reservations', existing.id);
+      store.remove(current.id, 'reservations', existing.id);
+    } : null,
   });
+  saveImages = attachImagePicker('reservations', itemId);
 }
 
 function expenseForm(existing) {
@@ -817,6 +974,14 @@ const actions = {
   },
   'add-itinerary': (d) => itineraryForm(null, { date: d.date }),
   'edit-itinerary': (d) => itineraryForm(findIn('itinerary', d.id)),
+  'view-images': (d) => {
+    openSheet({
+      title: '画像',
+      body: imagesOf(d.section, d.id).map((image, i) => `<img class="image-full" src="${esc(image.dataUrl)}" alt="画像${i + 1}">`).join(''),
+      submitLabel: '閉じる',
+      onSubmit: () => null,
+    });
+  },
   'add-place': () => placeForm(),
   'edit-place': (d) => placeForm(findIn('places', d.id)),
   'place-to-itinerary': (d) => {
@@ -962,7 +1127,7 @@ function enterTrip(tripId) {
       if (section === 'members') items.sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
       current[section] = items;
       render();
-    }, onError));
+    }, section === 'images' ? (error) => console.error(error) : onError)); // 画像が読めなくても旅の内容は見られるようにする
   });
 }
 

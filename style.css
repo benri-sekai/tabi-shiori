@@ -169,6 +169,35 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--sand);
   font-size: 12px;
 }
+.card { flex-wrap: wrap; }
+.card:not(.column) > .card-main { flex: 1 1 0; }
+.thumbs { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 8px 8px; }
+.thumb { width: 72px; height: 72px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--sand); overflow: hidden; cursor: pointer; }
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.image-full { display: block; width: 100%; height: auto; border-radius: 8px; }
+.field-label { font-size: 14px; font-weight: 700; }
+.image-edit { display: flex; flex-wrap: wrap; gap: 8px; }
+.image-edit:empty { display: none; }
+.image-item { position: relative; width: 84px; height: 84px; }
+.image-item img { display: block; width: 100%; height: 100%; object-fit: cover; border: 1px solid var(--line); border-radius: 8px; }
+.image-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fff;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+.file-btn { cursor: pointer; }
+.file-btn[hidden] { display: none; }
+.file-btn:focus-within { outline: 3px solid var(--green); outline-offset: 2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
 .trip-card { flex-direction: column; align-items: flex-start; padding: 12px 14px; color: inherit; text-decoration: none; }
 
 .front { text-align: center; padding-top: 28px; }

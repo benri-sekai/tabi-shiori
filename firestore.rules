@@ -9,6 +9,15 @@ service cloud.firestore {
       return request.resource.data.size() <= 30;
     }
 
+    function validSection(section) {
+      return section in ['members', 'itinerary', 'places', 'reservations', 'expenses', 'images'];
+    }
+    // 画像はアプリで圧縮したJPEGだけを受け付ける
+    function validImage(section) {
+      return section != 'images'
+        || (request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() <= 700000);
+    }
+
     // 招待リンクの推測困難なIDを知っている人だけが開ける。旅行の一覧取得は誰にも許可しない
     match /trips/{tripId} {
       allow get: if signedIn();
@@ -17,12 +26,9 @@ service cloud.firestore {
       allow delete: if false;
 
       match /{section}/{docId} {
-        allow read: if signedIn()
-          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
-        allow create, update: if signedIn() && smallDoc()
-          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
-        allow delete: if signedIn()
-          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
+        allow read: if signedIn() && validSection(section);
+        allow create, update: if signedIn() && smallDoc() && validSection(section) && validImage(section);
+        allow delete: if signedIn() && validSection(section);
       }
     }
   }

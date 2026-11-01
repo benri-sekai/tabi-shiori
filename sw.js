@@ -1,12 +1,12 @@
 // 更新時は VERSION と index.html の ?v= を一緒に上げる
-const VERSION = 1;
+const VERSION = 2;
 const CACHE = `tabi-shiori-v${VERSION}`;
 const FB = 'https://www.gstatic.com/firebasejs/12.5.0';
 const SHELL = [
   './',
   'index.html',
-  'style.css?v=1',
-  'js/app.js?v=1',
+  'style.css?v=2',
+  'js/app.js?v=2',
   'js/store.js',
   'js/settlement.js',
   'js/covers.js',
@@ -24,7 +24,8 @@ const SDK = [
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    await cache.addAll(SHELL);
+    // ブラウザのHTTPキャッシュから古いファイルを取り込まないよう、取り直す
+    await cache.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' })));
     await cache.addAll(SDK.map((url) => new Request(url, { mode: 'cors' })));
     await self.skipWaiting();
   })());
