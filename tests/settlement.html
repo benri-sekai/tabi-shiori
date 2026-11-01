@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head><meta charset="utf-8"><title>精算テスト</title></head>
+<body>
+<pre id="out"></pre>
+<script type="module">
+import { splitExpense, computeBalances, computeTransfers } from '../js/settlement.js';
+
+const results = [];
+const eq = (name, actual, expected) => {
+  const sorted = (v) => JSON.stringify(v, (_, x) => (x && typeof x === 'object' && !Array.isArray(x)
+    ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
+  const ok = sorted(actual) === sorted(expected);
+  results.push(`${ok ? 'OK ' : 'NG '} ${name}${ok ? '' : `\n  actual:   ${sorted(actual)}\n  expected: ${sorted(expected)}`}`);
+};
+const all = { a: 1, b: 1, c: 1 };
+
+eq('3人で割り切れる', splitExpense({ amount: 3000, payerId: 'a', participants: all }), { a: 1000, b: 1000, c: 1000 });
+eq('端数は支払った人の負担', splitExpense({ amount: 1000, payerId: 'a', participants: all }), { a: 334, b: 333, c: 333 });
+eq('一部のメンバーで割る', splitExpense({ amount: 3000, payerId: 'a', participants: { a: 1, b: 1 } }), { a: 1500, b: 1500 });
+eq('支払った人が対象外', splitExpense({ amount: 3000, payerId: 'a', participants: { b: 1, c: 1 } }), { a: 0, b: 1500, c: 1500 });
+eq('対象外で端数あり', splitExpense({ amount: 1001, payerId: 'a', participants: { b: 1, c: 1 } }), { a: 1, b: 500, c: 500 });
+eq('傾斜 2:1:1', splitExpense({ amount: 4000, payerId: 'a', participants: { a: 2, b: 1, c: 1 } }), { a: 2000, b: 1000, c: 1000 });
+eq('小数の傾斜 1.5:1', splitExpense({ amount: 2500, payerId: 'b', participants: { a: 1.5, b: 1 } }), { a: 1500, b: 1000 });
+eq('対象者なしは本人負担', splitExpense({ amount: 500, payerId: 'a', participants: {} }), { a: 500 });
+
+const trip = [
+  { amount: 9000, payerId: 'a', participants: all },
+  { amount: 3000, payerId: 'b', participants: all },
+];
+const balances = computeBalances(trip, ['a', 'b', 'c']);
+eq('差額の集計', balances, {
+  a: { paid: 9000, owed: 4000, balance: 5000 },
+  b: { paid: 3000, owed: 4000, balance: -1000 },
+  c: { paid: 0, owed: 4000, balance: -4000 },
+});
+eq('送金の計算', computeTransfers(balances), [
+  { from: 'c', to: 'a', amount: 4000 },
+  { from: 'b', to: 'a', amount: 1000 },
+]);
+eq('支払いなしは送金なし', computeTransfers(computeBalances([], ['a', 'b'])), []);
+eq('全員同額なら送金なし', computeTransfers(computeBalances([
+  { amount: 3000, payerId: 'a', participants: { a: 1, b: 1 } },
+  { amount: 3000, payerId: 'b', participants: { a: 1, b: 1 } },
+], ['a', 'b'])), []);
+
+// 乱数の支払いでも、差額の合計が必ず0になり、送金で全員の差額が消えることを確かめる
+let conserved = true;
+for (let i = 0; i < 500; i += 1) {
+  const ids = ['a', 'b', 'c'];
+  const list = Array.from({ length: 1 + (i % 8) }, (_, n) => {
+    const participants = {};
+    ids.forEach((id, k) => { if ((i + n + k) % 3 !== 0 || k === 0) participants[id] = 1 + ((i * (k + 1)) % 4) * 0.5; });
+    return { amount: 1 + ((i + 1) * (n + 7) * 137) % 50000, payerId: ids[(i + n) % 3], participants };
+  });
+  const b = computeBalances(list, ids);
+  if (Object.values(b).reduce((s, r) => s + r.balance, 0) !== 0) conserved = false;
+  const left = Object.fromEntries(ids.map((id) => [id, b[id].balance]));
+  for (const t of computeTransfers(b)) { left[t.from] += t.amount; left[t.to] -= t.amount; }
+  if (Object.values(left).some((v) => v !== 0)) conserved = false;
+}
+eq('乱数500回で金額が合う', conserved, true);
+
+document.getElementById('out').textContent = results.join('\n');
+document.title = results.some((r) => r.startsWith('NG')) ? 'FAILED' : 'PASSED';
+</script>
+</body>
+</html>

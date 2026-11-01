@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+    // 1件あたりの大きさを抑え、無料枠を食いつぶす書き込みを防ぐ
+    function smallDoc() {
+      return request.resource.data.size() <= 30;
+    }
+
+    // 招待リンクの推測困難なIDを知っている人だけが開ける。旅行の一覧取得は誰にも許可しない
+    match /trips/{tripId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create, update: if signedIn() && smallDoc();
+      allow delete: if false;
+
+      match /{section}/{docId} {
+        allow read: if signedIn()
+          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
+        allow create, update: if signedIn() && smallDoc()
+          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
+        allow delete: if signedIn()
+          && section in ['members', 'itinerary', 'places', 'reservations', 'expenses'];
+      }
+    }
+  }
+}
