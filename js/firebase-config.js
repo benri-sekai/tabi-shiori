@@ -11,4 +11,4 @@ export const firebaseConfig = {
 };
 
 // App Check（reCAPTCHA v3）のサイトキー。このサイト以外からの書き込みを防ぐ。null のあいだは使わない。
-export const appCheckSiteKey = null;
+export const appCheckSiteKey = '6LdGvwwuAAAAAMQ4-V-1Z4ukDSsiuFBsEOeNMfRW';

@@ -1,6 +1,6 @@
 // データの読み書き。Firebaseの設定があればFirestore、なければこの端末のlocalStorageを使う。
 // オフラインではFirestoreの書き込み完了を待つと止まるため、書き込みの完了は待たない。
-import { firebaseConfig, appCheckSiteKey } from './firebase-config.js?v=4';
+import { firebaseConfig, appCheckSiteKey } from './firebase-config.js?v=5';
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.5.0';
 
