@@ -436,3 +436,11 @@ dialog#sheet::backdrop { background: rgba(50, 35, 20, 0.5); }
   .b-day li, .b-list li { break-inside: avoid; }
   .b-section h2 { break-after: avoid; }
 }
+
+.trip-key {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 1rem;
+  letter-spacing: .04em;
+  word-break: break-all;
+  user-select: all;
+}

@@ -327,6 +327,8 @@ function viewTripList() {
         </section>` : `
         <p class="empty">まだ旅はありません。<br>招待リンクをもらった人は、そのリンクから開いてください。</p>`}
       <a class="btn primary wide" href="#/new">＋ 新しい旅をつくる</a>
+      <button class="btn wide ghost" data-action="open-by-key">旅のキーで開く</button>
+      <p class="hint">ホーム画面に追加したアプリはブラウザと一覧が別になります。ブラウザで「旅の設定」の旅のキーをコピーして、ここに貼り付けてください。</p>
     </main>`;
 }
 
@@ -700,6 +702,12 @@ function viewBooklet() {
     </main>`;
 }
 
+// 一覧に名前と日付も残し、参加直後から「名前のない旅」にならないようにする
+function joinAs(memberId) {
+  const { trip } = current;
+  saveMyTrip(current.id, { memberId, name: trip.name, startDate: trip.startDate, endDate: trip.endDate });
+}
+
 function viewSettings() {
   const { trip, members } = current;
   const me = meId();
@@ -709,6 +717,14 @@ function viewSettings() {
       <p class="notice">このリンクを知っている人は、予約情報を含む旅の内容を読み書きできます。メンバー以外には送らないでください。</p>
       <div class="stack">
         <button class="btn primary wide" data-action="share-invite">リンクを送る</button>
+      </div>
+    </section>
+    <section>
+      <h2 class="section-title">旅のキー</h2>
+      <p class="hint">ホーム画面に追加したアプリで開くときは、アプリのトップの「旅のキーで開く」にこのキーを貼り付けます。招待リンクと同じく、メンバー以外には教えないでください。</p>
+      <div class="card column padded">
+        <code class="trip-key">${esc(current.id)}</code>
+        <button class="btn small" data-action="copy" data-text="${esc(current.id)}">キーをコピー</button>
       </div>
     </section>
     <section>
@@ -997,7 +1013,7 @@ const actions = {
   'add-member': () => memberForm(),
   'edit-member': (d) => memberForm(findIn('members', d.id)),
   'be-member': (d) => {
-    saveMyTrip(current.id, { memberId: d.id });
+    joinAs(d.id);
     render();
   },
   'money-tab': (d) => {
@@ -1021,6 +1037,21 @@ const actions = {
       copyText(url, 'リンクをコピーしました');
     }
   },
+  'open-by-key': () => {
+    openSheet({
+      title: '旅のキーで開く',
+      body: fieldHtml({ name: 'key', label: '旅のキー', required: true, placeholder: 'キーか招待リンクを貼り付け' }),
+      submitLabel: '開く',
+      onSubmit: (values) => {
+        // 招待リンクごと貼られても、キーの部分だけを取り出す
+        const key = values.key.match(/#\/(?:join|trip)\/([A-Za-z0-9]{24})/)?.[1]
+          || values.key.replace(/\s/g, '').match(/^[A-Za-z0-9]{24}$/)?.[0];
+        if (!key) return '旅のキーは24文字です。コピーしたものをそのまま貼り付けてください';
+        location.hash = `#/join/${key}`;
+        return null;
+      },
+    });
+  },
   'forget-trip': () => {
     if (window.confirm('この端末の一覧から外しますか？')) {
       forgetMyTrip(current.id);
@@ -1028,7 +1059,7 @@ const actions = {
     }
   },
   'join-as': (d) => {
-    saveMyTrip(current.id, { memberId: d.id });
+    joinAs(d.id);
     render();
   },
   'join-new': () => {
@@ -1039,7 +1070,7 @@ const actions = {
       onSubmit: (values) => {
         const id = randomId(20);
         store.set(current.id, 'members', id, { name: values.name, createdAt: new Date().toISOString() });
-        saveMyTrip(current.id, { memberId: id });
+        joinAs(id);
         return null;
       },
     });

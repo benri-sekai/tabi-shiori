@@ -1,12 +1,12 @@
 // 更新時は VERSION と index.html の ?v= を一緒に上げる
-const VERSION = 2;
+const VERSION = 3;
 const CACHE = `tabi-shiori-v${VERSION}`;
 const FB = 'https://www.gstatic.com/firebasejs/12.5.0';
 const SHELL = [
   './',
   'index.html',
-  'style.css?v=2',
-  'js/app.js?v=2',
+  'style.css?v=3',
+  'js/app.js?v=3',
   'js/store.js',
   'js/settlement.js',
   'js/covers.js',
