@@ -1,4 +1,4 @@
-import { openStore, randomId, loadMyTrips, saveMyTrip, forgetMyTrip, SECTION_NAMES } from './store.js?v=6';
+import { openStore, randomId, loadMyTrips, saveMyTrip, forgetMyTrip, SECTION_NAMES } from './store.js?v=7';
 import { splitExpense, computeBalances, computeTransfers } from './settlement.js';
 import { COVERS } from './covers.js';
 

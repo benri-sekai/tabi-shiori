@@ -12,4 +12,4 @@ export const firebaseConfig = {
 
 // App Check（Google Cloud Fraud Defense、旧reCAPTCHA Enterprise）のキーID。このサイト以外からの書き込みを防ぐ。
 // reCAPTCHA v3 のキーはApp Checkに登録できなくなったため使わない。null のあいだは App Check を使わない。
-export const appCheckSiteKey = null;
+export const appCheckSiteKey = '6Lc2vAwuAAAAANGlA2yVPYQfdLDXULIjQcZyJ5MV';
