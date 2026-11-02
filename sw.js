@@ -1,16 +1,16 @@
 // 更新時は VERSION と、このファイル・index.html・app.js・store.js の ?v= を一緒に上げる
-const VERSION = 5;
+const VERSION = 6;
 const CACHE = `tabi-shiori-v${VERSION}`;
 const FB = 'https://www.gstatic.com/firebasejs/12.5.0';
 const SHELL = [
   './',
   'index.html',
-  'style.css?v=5',
-  'js/app.js?v=5',
-  'js/store.js?v=5',
+  'style.css?v=6',
+  'js/app.js?v=6',
+  'js/store.js?v=6',
   'js/settlement.js',
   'js/covers.js',
-  'js/firebase-config.js?v=5',
+  'js/firebase-config.js?v=6',
   'manifest.webmanifest',
   'icon-180.png',
   'icon-512.png',
