@@ -17,7 +17,7 @@
 
 ## 更新するとき
 
-`sw.js` の `VERSION` と `SHELL` の `?v=`、`index.html` の `?v=` を同じ番号に上げてから公開します。上げないと、利用者の端末に古い画面が残ります。
+`sw.js` の `VERSION` と、`?v=` の付いた読み込み（`sw.js`、`index.html`、`js/app.js`、`js/store.js`）をすべて同じ番号に上げてから公開します。`grep -rn "v=" index.html sw.js js` で漏れを確認できます。上げないと、利用者の端末に古い画面が残ります。
 
 `firestore.rules` を変えたときは、Firebaseコンソールの Firestore Database → ルール に貼り直します。
 

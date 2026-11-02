@@ -9,3 +9,6 @@ export const firebaseConfig = {
   appId: '1:300989374123:web:a00409382deaec8db1e1ee',
   measurementId: 'G-FBNWJGL875',
 };
+
+// App Check（reCAPTCHA v3）のサイトキー。このサイト以外からの書き込みを防ぐ。null のあいだは使わない。
+export const appCheckSiteKey = null;

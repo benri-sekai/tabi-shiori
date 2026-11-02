@@ -103,6 +103,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.ghost { background: transparent; border-color: var(--line); }
 .btn.wide { width: 100%; }
 .btn.small { min-height: 44px; padding: 6px 14px; font-size: 14px; white-space: nowrap; align-self: flex-start; }
+.btn.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
 .btn.danger-text { color: var(--danger); border-color: transparent; background: transparent; margin-right: auto; }
 
 .link-btn {
@@ -444,3 +445,10 @@ dialog#sheet::backdrop { background: rgba(50, 35, 20, 0.5); }
   word-break: break-all;
   user-select: all;
 }
+
+.hint.center { text-align: center; }
+.terms { gap: 12px; }
+.terms p, .terms li { line-height: 1.8; }
+.terms ul { padding-left: 1.4em; margin: 0; list-style: disc; }
+/* reCAPTCHAのバッジは下のタブと重なるため隠し、規約ページに表記する */
+.grecaptcha-badge { visibility: hidden; }

@@ -1,6 +1,6 @@
 // データの読み書き。Firebaseの設定があればFirestore、なければこの端末のlocalStorageを使う。
 // オフラインではFirestoreの書き込み完了を待つと止まるため、書き込みの完了は待たない。
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig, appCheckSiteKey } from './firebase-config.js?v=4';
 
 const SDK = 'https://www.gstatic.com/firebasejs/12.5.0';
 
@@ -64,6 +64,11 @@ function createLocalStore() {
       delete db[tripId].sections[section]?.[id];
       write(db);
     },
+    deleteTrip(tripId) {
+      const db = read();
+      delete db[tripId];
+      write(db);
+    },
   };
 }
 
@@ -74,6 +79,18 @@ async function createFirebaseStore() {
     import(`${SDK}/firebase-firestore.js`),
   ]);
   const app = initializeApp(firebaseConfig);
+  if (appCheckSiteKey) {
+    // オフラインで reCAPTCHA を読めなくても、端末に保存した内容は開けるようにする
+    try {
+      const appCheck = await import(`${SDK}/firebase-app-check.js`);
+      appCheck.initializeAppCheck(app, {
+        provider: new appCheck.ReCaptchaV3Provider(appCheckSiteKey),
+        isTokenAutoRefreshEnabled: true,
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
   const db = fs.initializeFirestore(app, {
     localCache: fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() }),
   });
@@ -118,6 +135,13 @@ async function createFirebaseStore() {
     },
     remove(tripId, section, id) {
       report(fs.deleteDoc(itemRef(tripId, section, id)));
+    },
+    // Firestoreは中身を自動で消さないので、各項目を消してから旅を消す
+    deleteTrip(tripId, itemsBySection) {
+      Object.entries(itemsBySection).forEach(([section, items]) => {
+        items.forEach((item) => report(fs.deleteDoc(itemRef(tripId, section, item.id))));
+      });
+      report(fs.deleteDoc(tripRef(tripId)));
     },
   };
 }

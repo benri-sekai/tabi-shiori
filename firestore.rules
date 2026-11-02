@@ -15,7 +15,7 @@ service cloud.firestore {
     // 画像はアプリで圧縮したJPEGだけを受け付ける
     function validImage(section) {
       return section != 'images'
-        || (request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() <= 700000);
+        || (request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() <= 400000);
     }
 
     // 招待リンクの推測困難なIDを知っている人だけが開ける。旅行の一覧取得は誰にも許可しない
@@ -23,7 +23,8 @@ service cloud.firestore {
       allow get: if signedIn();
       allow list: if false;
       allow create, update: if signedIn() && smallDoc();
-      allow delete: if false;
+      // メンバーは中身を1件ずつ消せるので、旅ごとの削除も同じくメンバーに任せる
+      allow delete: if signedIn();
 
       match /{section}/{docId} {
         allow read: if signedIn() && validSection(section);

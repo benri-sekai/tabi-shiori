@@ -1,4 +1,4 @@
-import { openStore, randomId, loadMyTrips, saveMyTrip, forgetMyTrip, SECTION_NAMES } from './store.js';
+import { openStore, randomId, loadMyTrips, saveMyTrip, forgetMyTrip, SECTION_NAMES } from './store.js?v=4';
 import { splitExpense, computeBalances, computeTransfers } from './settlement.js';
 import { COVERS } from './covers.js';
 
@@ -10,7 +10,8 @@ const CATEGORIES = ['交通', '宿泊', '食事', '観光', '買い物', 'その
 const RESERVATION_TYPES = ['宿泊', '交通', '食事', 'チケット', 'その他'];
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
 const MAX_IMAGES = 4;
-const MAX_IMAGE_CHARS = 600000; // Firestoreの1件1MiBの上限に余裕を持たせる
+const MAX_TRIP_IMAGES = 30; // 無料枠の保存容量を、利用者みんなで分け合うため
+const MAX_IMAGE_CHARS = 300000; // 約220KB。スマホの画面で見るには十分な画質
 const TABS = [
   ['home', 'ホーム', '⌂'],
   ['itinerary', '日程', '☰'],
@@ -127,7 +128,7 @@ async function compressImage(file) {
       image.onerror = () => { clearTimeout(timer); reject(new Error('image load failed')); };
       image.src = url;
     });
-    for (const [side, quality] of [[1600, 0.8], [1280, 0.75], [1024, 0.7], [800, 0.6], [640, 0.5]]) {
+    for (const [side, quality] of [[1280, 0.72], [1024, 0.68], [800, 0.6], [640, 0.5]]) {
       const scale = Math.min(1, side / Math.max(image.naturalWidth, image.naturalHeight));
       const canvas = document.createElement('canvas');
       canvas.width = Math.round(image.naturalWidth * scale);
@@ -189,7 +190,9 @@ function attachImagePicker(section, itemId) {
   });
 
   input.addEventListener('change', async () => {
-    const room = MAX_IMAGES - kept().length - pending.length;
+    const tripRoom = MAX_TRIP_IMAGES - (current.images.length - removed.size) - pending.length;
+    const itemRoom = MAX_IMAGES - kept().length - pending.length;
+    const room = Math.max(0, Math.min(itemRoom, tripRoom));
     const files = [...input.files];
     input.value = '';
     submit.disabled = true;
@@ -206,7 +209,9 @@ function attachImagePicker(section, itemId) {
     }
     const messages = [];
     if (failed) messages.push(`${failed}枚を読み込めませんでした。`);
-    if (files.length > room) messages.push(`画像は${MAX_IMAGES}枚までです。`);
+    if (files.length > room) {
+      messages.push(tripRoom < itemRoom ? `画像は1つの旅で${MAX_TRIP_IMAGES}枚までです。不要な画像を外してください。` : `画像は${MAX_IMAGES}枚までです。`);
+    }
     status.textContent = messages.join('');
     submit.disabled = false;
   });
@@ -329,6 +334,7 @@ function viewTripList() {
       <a class="btn primary wide" href="#/new">＋ 新しい旅をつくる</a>
       <button class="btn wide ghost" data-action="open-by-key">旅のキーで開く</button>
       <p class="hint">ホーム画面に追加したアプリはブラウザと一覧が別になります。ブラウザで「旅の設定」の旅のキーをコピーして、ここに貼り付けてください。</p>
+      <p class="hint center"><a href="#/terms">利用規約・プライバシーポリシー</a></p>
     </main>`;
 }
 
@@ -349,8 +355,55 @@ function viewNewTrip() {
         ${fieldHtml({ name: 'myName', label: 'あなたの名前', required: true, placeholder: '例：りょう' })}
         ${fieldHtml({ name: 'others', label: '一緒に行く人', type: 'textarea', rows: 3, placeholder: '1行に1人ずつ', hint: 'あとから追加もできます。' })}
         <p class="form-error" id="new-trip-error" role="alert"></p>
+        <p class="hint">旅をつくると、<a href="#/terms">利用規約・プライバシーポリシー</a>に同意したものとみなします。</p>
         <button class="btn primary wide" type="submit">旅をつくる</button>
       </form>
+    </main>`;
+}
+
+function viewTerms() {
+  document.title = '利用規約・プライバシー | 旅のしおり帖';
+  return `
+    <main class="page terms">
+      <header class="top-bar"><a class="back" href="#/">‹ もどる</a></header>
+      <h1 class="page-title">利用規約・プライバシーポリシー</h1>
+      <p class="hint">2026年11月2日 制定</p>
+
+      <h2 class="section-title">このサービスについて</h2>
+      <p>旅のしおり帖（以下「本サービス」）は、個人（benri-sekai）が無料で運営する、旅の計画と立て替えの精算を記録するWebアプリです。会員登録は不要です。</p>
+
+      <h2 class="section-title">保存する情報</h2>
+      <ul>
+        <li>あなたが入力した内容（旅の名前、日程、メンバーの名前、行きたい場所、予約情報、支出、画像など）</li>
+        <li>端末ごとに自動で発行される匿名のID（Firebase Authentication）</li>
+        <li>この端末で開いた旅の一覧（端末の中だけに保存し、サーバーには送りません）</li>
+      </ul>
+      <p>入力内容は Google が提供する Firebase（Cloud Firestore）に保存されます。アクセス解析や広告のための情報は集めていません。</p>
+
+      <h2 class="section-title">見える人の範囲</h2>
+      <p>旅の内容は、招待リンクまたは旅のキーを知っている人なら誰でも読み書きできます。リンクとキーはメンバー以外に教えないでください。<strong>パスポート番号、クレジットカード番号、パスワードなどは、文字でも画像でも保存しないでください。</strong></p>
+
+      <h2 class="section-title">削除</h2>
+      <p>旅の「旅の設定」→「この旅を削除する」で、その旅のデータをすべて削除できます。削除したデータは元に戻せません。</p>
+
+      <h2 class="section-title">禁止事項</h2>
+      <ul>
+        <li>法令や公序良俗に反する内容、他人の権利を侵害する内容の保存</li>
+        <li>大量の書き込みなど、本サービスの運営を妨げる行為</li>
+        <li>他人の招待リンクやキーを、その人の許可なく使う行為</li>
+      </ul>
+      <p>これらに当たると判断した場合、予告なくデータを削除することがあります。</p>
+
+      <h2 class="section-title">免責</h2>
+      <p>本サービスは現状のまま提供します。精算額は入力内容をもとにした目安で、正確さは保証しません。データの消失、サービスの停止や終了、内容の変更によって生じた損害について、運営者は責任を負いません。保存容量には上限があります（画像は1つの予定などに4枚、1つの旅に30枚まで）。</p>
+
+      <h2 class="section-title">お問い合わせ</h2>
+      <p><a href="https://github.com/benri-sekai/tabi-shiori/issues" target="_blank" rel="noopener">GitHub の Issues</a> から受け付けます。Issues は誰でも読めるため、招待リンクやキー、個人情報は書かないでください。</p>
+
+      <h2 class="section-title">変更</h2>
+      <p>この規約は必要に応じて変更し、このページでお知らせします。</p>
+
+      <p class="hint">This site is protected by reCAPTCHA and the Google <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">Privacy Policy</a> and <a href="https://policies.google.com/terms" target="_blank" rel="noopener">Terms of Service</a> apply.</p>
     </main>`;
 }
 
@@ -378,6 +431,7 @@ function viewJoin() {
         ${members.map((m) => `<button class="btn wide" data-action="join-as" data-id="${esc(m.id)}">${esc(m.name)}</button>`).join('')}
         <button class="btn wide ghost" data-action="join-new">＋ 名前を追加して参加</button>
       </div>
+      <p class="hint center">参加すると、<a href="#/terms">利用規約・プライバシーポリシー</a>に同意したものとみなします。</p>
     </main>`;
 }
 
@@ -753,6 +807,10 @@ function viewSettings() {
     <section>
       <button class="btn wide ghost" data-action="forget-trip">この端末の一覧から外す</button>
       <p class="hint">旅のデータは消えません。招待リンクからまた開けます。</p>
+    </section>
+    <section>
+      <button class="btn wide danger" data-action="delete-trip">この旅を削除する</button>
+      <p class="hint">メンバー全員の端末から、予定・予約・画像・精算をすべて消します。元に戻せません。</p>
     </section>`);
 }
 
@@ -1052,6 +1110,24 @@ const actions = {
       },
     });
   },
+  'delete-trip': () => {
+    const { trip } = current;
+    openSheet({
+      title: 'この旅を削除する',
+      body: `<p class="notice">「${esc(trip.name)}」をメンバー全員の端末から削除します。元に戻せません。</p>
+        ${fieldHtml({ name: 'confirmName', label: '確認のため、旅の名前を入力してください', required: true, placeholder: trip.name })}`,
+      submitLabel: '削除する',
+      onSubmit: (values) => {
+        if (values.confirmName !== trip.name) return '旅の名前が一致しません';
+        const tripId = current.id;
+        store.deleteTrip(tripId, Object.fromEntries(SECTION_NAMES.map((section) => [section, current[section]])));
+        forgetMyTrip(tripId);
+        location.hash = '#/';
+        toast('旅を削除しました');
+        return null;
+      },
+    });
+  },
   'forget-trip': () => {
     if (window.confirm('この端末の一覧から外しますか？')) {
       forgetMyTrip(current.id);
@@ -1176,12 +1252,19 @@ function currentView() {
     leaveTrip();
     return viewNewTrip();
   }
+  if (first === 'terms') {
+    leaveTrip();
+    return viewTerms();
+  }
   if (first === 'join' || first === 'trip') {
     if (!id) return viewMessage('リンクが正しくありません', '招待リンクをもう一度確認してください。');
     enterTrip(id);
     if (current.error) return viewMessage('読み込めませんでした', 'ネット接続を確認してください。初めて開く旅は、接続が必要です。');
     if (current.trip === undefined) return `<main class="page front"><p class="empty">読み込み中です…</p></main>`;
-    if (current.trip === null) return viewMessage('旅が見つかりません', '招待リンクが正しいか確認してください。');
+    if (current.trip === null) {
+      forgetMyTrip(id);
+      return viewMessage('旅が見つかりません', '旅が削除されたか、招待リンクやキーが正しくありません。');
+    }
     if (!loadMyTrips()[id]?.memberId || !current.members.some((m) => m.id === meId())) {
       // メンバーの読み込み前に招待画面を一瞬出さないよう、参加済みの端末では待つ
       if (loadMyTrips()[id]?.memberId && !current.members.length) return `<main class="page front"><p class="empty">読み込み中です…</p></main>`;
